@@ -1,39 +1,41 @@
-# EAGLE DIRECT V8 — sem relay de vídeo no Render
+# EAGLE DIRECT V8 FIX — URL ORIGINAL
 
-Esta versão corrige o erro de arquitetura das versões anteriores: o Render **não retransmite o vídeo**.
+Correção mínima da V8.
 
-## O que ela faz
+O erro da V8 era a função que convertia URLs como:
 
-- `/canais.m3u` lê `EAGLE_VLC.m3u` e devolve uma lista para o VLC/Kodi.
-- As URLs de vídeo apontam **diretamente para a origem**.
-- Não existe rota `/canal/<id>`.
+`http://servidor/usuario/senha/62169`
+
+para:
+
+`http://servidor/usuario/senha/62169.ts`
+
+Alguns servidores não aceitam essa forma e o VLC retorna "A entrada não pode ser aberta".
+
+## Esta correção mantém a arquitetura da V8
+
+- Render entrega apenas `/canais.m3u`.
+- O vídeo continua indo direto do provedor para VLC/Kodi.
+- Não existe relay `/canal/<id>`.
 - Não existe FFmpeg.
-- Não existe proxy/relay de MPEG-TS pelo Render.
-- Não injeta `network-caching`, `live-caching`, `clock-jitter` ou `clock-synchro`.
-- Quando reconhece uma URL Xtream/XUI live sem extensão ou em `.m3u8`, gera a forma direta `.ts`.
+- Não existe transcodificação.
+- NÃO acrescenta `.ts`.
+- NÃO converte para `.m3u8`.
+- Preserva a URL de cada canal exatamente como está na `EAGLE_VLC.m3u`.
 
-## Render
+## Substitua
 
-Use Web Service com Docker e Dockerfile `./Dockerfile`.
+- `server.mjs`
+- `Dockerfile`
+- `.dockerignore`
 
-A playlist pode estar:
+Mantenha sua `EAGLE_VLC.m3u`.
 
-- como `EAGLE_VLC.m3u` no projeto; ou
-- preferencialmente como Secret File do Render com nome `EAGLE_VLC.m3u`.
+## Verificação
 
-Depois do deploy:
+Abra `/diagnostico.json` e confirme:
 
-- `https://SEU-SERVICO.onrender.com/health`
-- `https://SEU-SERVICO.onrender.com/diagnostico.json`
-- `https://SEU-SERVICO.onrender.com/canais.m3u`
-
-No diagnóstico, confirme:
-
-- `"videoPath": "DIRECT_ORIGIN_TO_PLAYER"`
+- `"urlRewrite": false`
+- `"appendsTs": false`
+- `"keepsOriginalProviderUrl": true`
 - `"renderRelaysVideo": false`
-- `"ffmpeg": false`
-- `"generatedCanalRoutes": false`
-
-## Sobre atraso
-
-Esta versão elimina o atraso **adicionado pelo relay que estava no nosso código**. Ela não consegue antecipar quadros que o próprio provedor já entrega atrasados em relação à TV aberta.

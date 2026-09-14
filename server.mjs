@@ -25,52 +25,26 @@ function isHttpUrl(s) {
   return /^https?:\/\//i.test(String(s || '').trim());
 }
 
-// Canonicaliza URLs de live Xtream/XUI para MPEG-TS contínuo, quando o padrão é reconhecido.
-// Não cria proxy e não faz o vídeo passar pelo Render.
-function canonicalDirectTs(rawUrl) {
-  const original = String(rawUrl || '').trim();
-  try {
-    const u = new URL(original);
-    const parts = u.pathname.split('/').filter(Boolean);
-
-    // Rewrite comum: /USER/PASS/STREAM_ID  ou /USER/PASS/STREAM_ID.m3u8|.ts
-    if (parts.length === 3 && /^\d+(?:\.(?:ts|m3u8))?$/i.test(parts[2])) {
-      const id = parts[2].replace(/\.(?:ts|m3u8)$/i, '');
-      u.pathname = `/${parts[0]}/${parts[1]}/${id}.ts`;
-      return u.toString();
-    }
-
-    // Endpoint explícito: /live/USER/PASS/STREAM_ID.m3u8|.ts
-    if (parts.length === 4 && parts[0].toLowerCase() === 'live' && /^\d+(?:\.(?:ts|m3u8))?$/i.test(parts[3])) {
-      const id = parts[3].replace(/\.(?:ts|m3u8)$/i, '');
-      u.pathname = `/live/${parts[1]}/${parts[2]}/${id}.ts`;
-      return u.toString();
-    }
-  } catch {}
-  return original;
-}
-
+// V8 FIX: NUNCA altera a URL do canal.
+// Em especial, não acrescenta .ts e não converte para .m3u8.
 function buildDirectPlaylist(text) {
   const lines = String(text).replace(/^\uFEFF/, '').split(/\r?\n/);
   const out = [];
   let urlCount = 0;
-  let canonicalized = 0;
 
   for (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
 
-    // Removemos somente opções que alteram buffer/clock do player.
-    // A latência do player não deve ser mascarada como "correção" do servidor.
+    // Mantém o comportamento de baixa latência da V8: apenas remove hints
+    // de cache/clock que poderiam forçar buffer extra no player.
     if (/^#EXTVLCOPT:(?:network-caching|live-caching|file-caching|disc-caching|clock-jitter|clock-synchro)=/i.test(line)) {
       continue;
     }
 
     if (isHttpUrl(line)) {
-      const direct = canonicalDirectTs(line);
-      if (direct !== line) canonicalized++;
       urlCount++;
-      out.push(direct);
+      out.push(line); // URL ORIGINAL, sem qualquer reescrita.
       continue;
     }
 
@@ -84,7 +58,6 @@ function buildDirectPlaylist(text) {
   return {
     body: out.join('\n') + '\n',
     urlCount,
-    canonicalized,
   };
 }
 
@@ -123,21 +96,22 @@ const server = http.createServer((req, res) => {
     try {
       const p = loadPlaylist();
       return send(res, 200,
-        `EAGLE DIRECT OK\n` +
+        `EAGLE DIRECT V8 FIX OK\n` +
         `Canais/URLs: ${p.urlCount}\n` +
+        `URLs alteradas: NÃO\n` +
         `Vídeo passa pelo Render: NÃO\n` +
         `Lista: /canais.m3u\n` +
         `Diagnóstico: /diagnostico.json\n`
       );
     } catch (e) {
-      return send(res, 503, `EAGLE DIRECT ERRO\n${e.message}\n`);
+      return send(res, 503, `EAGLE DIRECT V8 FIX ERRO\n${e.message}\n`);
     }
   }
 
   if (req.method === 'GET' && pathname === '/health') {
     try {
       const p = loadPlaylist();
-      return sendJson(res, 200, { ok: true, urls: p.urlCount, canonicalizedToTs: p.canonicalized });
+      return sendJson(res, 200, { ok: true, urls: p.urlCount, urlRewrite: false, appendsTs: false });
     } catch (e) {
       return sendJson(res, 503, { ok: false, error: e.message });
     }
@@ -150,12 +124,13 @@ const server = http.createServer((req, res) => {
         ok: true,
         source: p.path,
         urls: p.urlCount,
-        canonicalizedToTs: p.canonicalized,
         videoPath: 'DIRECT_ORIGIN_TO_PLAYER',
         renderRelaysVideo: false,
         ffmpeg: false,
         generatedCanalRoutes: false,
-        forcedPlayerCache: false,
+        urlRewrite: false,
+        appendsTs: false,
+        keepsOriginalProviderUrl: true,
       });
     } catch (e) {
       return sendJson(res, 503, { ok: false, error: e.message });
@@ -179,8 +154,6 @@ const server = http.createServer((req, res) => {
     }
   }
 
-  // Intencional: NÃO existe /canal/<id> nesta versão.
-  // Qualquer reprodução deve sair diretamente do player para o provedor.
   return send(res, 404, '404\n');
 });
 
@@ -188,5 +161,5 @@ server.requestTimeout = 0;
 server.headersTimeout = 15000;
 server.keepAliveTimeout = 5000;
 server.listen(PORT, HOST, () => {
-  console.log(`[server] EAGLE DIRECT ouvindo em http://${HOST}:${PORT}`);
+  console.log(`[server] EAGLE DIRECT V8 FIX ouvindo em http://${HOST}:${PORT}`);
 });
