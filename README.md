@@ -1,41 +1,42 @@
-# EAGLE DIRECT V8 FIX — URL ORIGINAL
+# EAGLE RAW RELAY — baixa latência
 
-Correção mínima da V8.
+Este pacote recria o relay sem FFmpeg.
 
-O erro da V8 era a função que convertia URLs como:
+O objetivo é simples:
+- o Render entrega `/canais.m3u`;
+- cada canal aponta para `/canal/<id>.ts`;
+- o servidor abre a URL ORIGINAL da M3U;
+- os bytes do provedor são repassados diretamente para VLC/Kodi;
+- não há transcode, remux, `.ts` acrescentado à URL original, HLS novo ou buffer artificial do servidor.
 
-`http://servidor/usuario/senha/62169`
-
-para:
-
-`http://servidor/usuario/senha/62169.ts`
-
-Alguns servidores não aceitam essa forma e o VLC retorna "A entrada não pode ser aberta".
-
-## Esta correção mantém a arquitetura da V8
-
-- Render entrega apenas `/canais.m3u`.
-- O vídeo continua indo direto do provedor para VLC/Kodi.
-- Não existe relay `/canal/<id>`.
-- Não existe FFmpeg.
-- Não existe transcodificação.
-- NÃO acrescenta `.ts`.
-- NÃO converte para `.m3u8`.
-- Preserva a URL de cada canal exatamente como está na `EAGLE_VLC.m3u`.
-
-## Substitua
-
+## Arquivos
+Substitua no GitHub:
 - `server.mjs`
 - `Dockerfile`
 - `.dockerignore`
 
-Mantenha sua `EAGLE_VLC.m3u`.
+Mantenha a sua `EAGLE_VLC.m3u` original. O servidor procura primeiro:
+1. variável `M3U_FILE`;
+2. `/etc/secrets/EAGLE_VLC.m3u`;
+3. `/app/EAGLE_VLC.m3u`;
+4. `./EAGLE_VLC.m3u`.
 
-## Verificação
+## Render
+Para não publicar credenciais da lista, o recomendado é criar Secret File:
+- Filename: `EAGLE_VLC.m3u`
+- Conteúdo: sua M3U original
 
-Abra `/diagnostico.json` e confirme:
+A URL para VLC/Kodi:
+`https://SEU-SERVICO.onrender.com/canais.m3u`
 
-- `"urlRewrite": false`
-- `"appendsTs": false`
-- `"keepsOriginalProviderUrl": true`
-- `"renderRelaysVideo": false`
+Diagnóstico:
+`https://SEU-SERVICO.onrender.com/health`
+
+O `/health` deve mostrar:
+- `mode: RAW_BYTE_FOR_BYTE`
+- `ffmpeg: false`
+- `transcode: false`
+- `remux: false`
+
+## Importante
+O relay não altera codecs de áudio ou vídeo: ele envia os mesmos bytes recebidos da origem.
