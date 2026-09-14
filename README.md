@@ -1,36 +1,39 @@
-# KODI / Render — V6
+# EAGLE DIRECT V8 — sem relay de vídeo no Render
 
-## O que foi corrigido
+Esta versão corrige o erro de arquitetura das versões anteriores: o Render **não retransmite o vídeo**.
 
-A versão anterior tentava fazer o vídeo sair do provedor, entrar no Render e só depois ir ao VLC. Isso muda o IP de origem da conexão e pode ser recusado pelo provedor, além de acrescentar um salto de rede.
+## O que ela faz
 
-Nesta V6:
-
-- `/canais.m3u` entrega as URLs originais ao VLC/Kodi. O vídeo NÃO atravessa o Render.
-- `/canal/<id>.ts` continua existindo para compatibilidade, mas agora responde com redirecionamento HTTP 302 para a URL original.
-- Não usa FFmpeg.
-- Não transcodifica.
-- Não cria buffer de vídeo no servidor.
-- Mantém `/health` e `/diagnostico.json`.
-
-## Arquivos para colocar na raiz do GitHub
-
-Substitua/adicione:
-
-- `Dockerfile`
-- `server.mjs`
-- `.dockerignore`
-
-Mantenha seu `EAGLE_VLC.m3u` atual. Se existir um Secret File do Render chamado `EAGLE_VLC.m3u`, ele tem prioridade.
+- `/canais.m3u` lê `EAGLE_VLC.m3u` e devolve uma lista para o VLC/Kodi.
+- As URLs de vídeo apontam **diretamente para a origem**.
+- Não existe rota `/canal/<id>`.
+- Não existe FFmpeg.
+- Não existe proxy/relay de MPEG-TS pelo Render.
+- Não injeta `network-caching`, `live-caching`, `clock-jitter` ou `clock-synchro`.
+- Quando reconhece uma URL Xtream/XUI live sem extensão ou em `.m3u8`, gera a forma direta `.ts`.
 
 ## Render
 
-- Runtime: Docker
-- Dockerfile Path: `./Dockerfile`
-- Docker Command/Start Command: vazio
+Use Web Service com Docker e Dockerfile `./Dockerfile`.
 
-Depois do deploy use no VLC/Kodi:
+A playlist pode estar:
 
-`https://kodi-vt5s.onrender.com/canais.m3u`
+- como `EAGLE_VLC.m3u` no projeto; ou
+- preferencialmente como Secret File do Render com nome `EAGLE_VLC.m3u`.
 
-Antes de testar, feche a lista antiga do VLC e abra novamente essa URL para evitar que o VLC continue usando os links `/canal/...` em cache.
+Depois do deploy:
+
+- `https://SEU-SERVICO.onrender.com/health`
+- `https://SEU-SERVICO.onrender.com/diagnostico.json`
+- `https://SEU-SERVICO.onrender.com/canais.m3u`
+
+No diagnóstico, confirme:
+
+- `"videoPath": "DIRECT_ORIGIN_TO_PLAYER"`
+- `"renderRelaysVideo": false`
+- `"ffmpeg": false`
+- `"generatedCanalRoutes": false`
+
+## Sobre atraso
+
+Esta versão elimina o atraso **adicionado pelo relay que estava no nosso código**. Ela não consegue antecipar quadros que o próprio provedor já entrega atrasados em relação à TV aberta.
