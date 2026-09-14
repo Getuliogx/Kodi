@@ -1,33 +1,36 @@
-# EAGLE / Kodi relay — correção
+# KODI / Render — V6
 
-A versão corrigida remove o FFmpeg do caminho do canal e usa proxy HTTP direto, sem transcodificação e sem reempacotamento. Isso elimina o limite artificial de `MAX_STREAMS` da versão anterior e evita segurar o início do vídeo esperando o FFmpeg.
+## O que foi corrigido
 
-## O que substituir no GitHub
+A versão anterior tentava fazer o vídeo sair do provedor, entrar no Render e só depois ir ao VLC. Isso muda o IP de origem da conexão e pode ser recusado pelo provedor, além de acrescentar um salto de rede.
 
-Na raiz do repositório, substitua/adicione somente:
+Nesta V6:
+
+- `/canais.m3u` entrega as URLs originais ao VLC/Kodi. O vídeo NÃO atravessa o Render.
+- `/canal/<id>.ts` continua existindo para compatibilidade, mas agora responde com redirecionamento HTTP 302 para a URL original.
+- Não usa FFmpeg.
+- Não transcodifica.
+- Não cria buffer de vídeo no servidor.
+- Mantém `/health` e `/diagnostico.json`.
+
+## Arquivos para colocar na raiz do GitHub
+
+Substitua/adicione:
 
 - `Dockerfile`
 - `server.mjs`
 - `.dockerignore`
 
-**Não substitua sua `EAGLE_VLC.m3u`.** O servidor usa a que já existe no repositório. Se houver `/etc/secrets/EAGLE_VLC.m3u` no Render, ela tem prioridade automaticamente.
+Mantenha seu `EAGLE_VLC.m3u` atual. Se existir um Secret File do Render chamado `EAGLE_VLC.m3u`, ele tem prioridade.
 
 ## Render
 
-Use o mesmo Web Service com runtime Docker:
-
+- Runtime: Docker
 - Dockerfile Path: `./Dockerfile`
-- Start/Docker Command: vazio
-- Não precisa de FFmpeg nem de `ADMIN_PASSWORD`.
+- Docker Command/Start Command: vazio
 
-Após o deploy, abra:
+Depois do deploy use no VLC/Kodi:
 
-- `https://SEU-SERVICO.onrender.com/health`
-- `https://SEU-SERVICO.onrender.com/diagnostico.json`
-- `https://SEU-SERVICO.onrender.com/canais.m3u`
+`https://kodi-vt5s.onrender.com/canais.m3u`
 
-No VLC/Kodi, use a URL que termina em `/canais.m3u`. Ela gera links no formato `/canal/<id>.ts`.
-
-## Segurança
-
-Se a M3U contiver usuário/senha do provedor, o ideal é não deixá-la em repositório público. Mova-a para Render > Environment > Secret Files como `EAGLE_VLC.m3u` e remova a cópia pública depois de trocar/rotacionar as credenciais expostas.
+Antes de testar, feche a lista antiga do VLC e abra novamente essa URL para evitar que o VLC continue usando os links `/canal/...` em cache.
